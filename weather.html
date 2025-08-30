@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather App</title>
+  <style>
+    .weather-card {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      width: 360px;
+      backdrop-filter: blur(10px);
+      z-index: 10;
+      overflow-y: auto;
+      max-height: 90vh;
+    }
+    input,
+    button {
+      padding: 8px;
+      border-radius: 8px;
+      margin: 5px;
+    }
+    button {
+      border: none;
+      background: #4facfe;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #00c6ff;
+    }
+    .weather-info {
+      margin-top: 15px;
+    }
+    .weather-icon {
+      width: 60px;
+      height: 60px;
+    }
+    .forecast-day {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      transition: background 1s ease;
+    }
+
+   
+    .snowflake {
+      position: fixed;
+      top: -10px;
+      font-size: 20px;
+      color: white;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      to {
+        transform: translateY(100vh) rotate(360deg);
+      }
+    }
+
+   
+    .raindrop {
+      position: fixed;
+      top: -10px;
+      width: 2px;
+      height: 15px;
+      background: rgba(255, 255, 255, 0.7);
+      animation: rain linear infinite;
+    }
+    @keyframes rain {
+      to {
+        transform: translateY(100vh);
+      }
+    }
+
+    /* Lightning */
+    .lightning {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.6);
+      opacity: 0;
+      animation: flash 5s infinite;
+    }
+    @keyframes flash {
+      0%,
+      97%,
+      100% {
+        opacity: 0;
+      }
+      98% {
+        opacity: 1;
+      }
+    }
+    small.hint { display:block; margin-top:8px; opacity:0.8; }
+  </style>
+</head>
+<body>
+  <div class="weather-card">
+    <h2>Weather</h2>
+    <input type="text" id="city" placeholder="Enter city in English..." />
+    <button onclick="getWeather()">Search</button>
+    <div id="weather" class="weather-info"></div>
+  </div>
+
+  <script>
+    const apiKey = "31664be6517e022d353e4145781d2be0"; 
+
+    async function getWeather() {
+      const cityInput = document.getElementById("city");
+      const city = cityInput.value.trim();
+      const weatherDiv = document.getElementById("weather");
+      clearEffects();
+
+      if (!city) {
+        weatherDiv.innerHTML = "<p>Please enter a city name!</p>";
+        return;
+      }
+
+      try {
+       
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
+            city
+          )}&appid=${apiKey}&units=metric&lang=en`
+        );
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(parseOpenWeatherError(errText) || "City not found! Try in English (e.g. Kyiv, Lviv, Odesa)." );
+        }
+
+        const data = await res.json();
+        const { lat, lon } = data.coord;
+
+       
+        let usedOneCall = false;
+        let forecast = null;
+
+        try {
+          const ocRes = await fetch(
+            `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,alerts&appid=${apiKey}&units=metric&lang=en`
+          );
+          if (!ocRes.ok) throw new Error("ONECALL_3_FAILED");
+          forecast = await ocRes.json();
+          usedOneCall = true;
+        } catch (e) {
+         
+          const frRes = await fetch(
+            `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=en`
+          );
+          if (!frRes.ok) throw new Error("Forecast API failed. Check API key / plan.");
+          const fr = await frRes.json();
+          forecast = buildDailyFrom3h(fr);
+          usedOneCall = false;
+        }
+
+        
+        const current = usedOneCall ? forecast.current : data; 
+        const currentIconCode = usedOneCall
+          ? forecast.current.weather[0].icon
+          : data.weather[0].icon;
+        const currentDesc = usedOneCall
+          ? forecast.current.weather[0].description
+          : data.weather[0].description;
+
+        const iconUrl = `https://openweathermap.org/img/wn/${currentIconCode}@2x.png`;
+
+        const windSpeed = usedOneCall ? current.wind_speed : (current.wind && current.wind.speed);
+        const humidity = usedOneCall ? current.humidity : (current.main && current.main.humidity);
+        const pressure = usedOneCall ? current.pressure : (current.main && current.main.pressure);
+        const temp = usedOneCall ? current.temp : (current.main && current.main.temp);
+        const feels = usedOneCall ? current.feels_like : (current.main && current.main.feels_like);
+
+        let currentHTML = `
+          <h3>${data.name}, ${data.sys.country}</h3>
+          <img class="weather-icon" src="${iconUrl}" alt="${currentDesc}">
+          <p><b>${Math.round(temp)}°C</b> (Feels like ${Math.round(feels)}°C)</p>
+          <p>${currentDesc}</p>
+          <p>💨 Wind: ${windSpeed} m/s</p>
+          <p>💧 Humidity: ${humidity}%</p>
+          <p>📊 Pressure: ${pressure} hPa</p>
+        `;
+
+       
+        let dailyHTML = `<h4>${usedOneCall ? "7-Day Forecast" : "5-Day Forecast"}:</h4>`;
+        const dailyArr = usedOneCall ? forecast.daily.slice(0, 7) : forecast.daily; // у fallback ми вже підготували масив
+
+        dailyArr.forEach((day) => {
+          const date = new Date(day.dt * 1000);
+          const iconDay = `https://openweathermap.org/img/wn/${day.icon}.png`;
+          dailyHTML += `
+            <div class="forecast-day">
+              <b>${date.toDateString()}</b><br>
+              <img src="${iconDay}" alt="${day.description || ''}">
+              <div>${Math.round(day.temp.day)}°C (min ${Math.round(day.temp.min)}°C / max ${Math.round(day.temp.max)}°C)</div>
+              <div>${day.description || ''}</div>
+            </div>
+          `;
+        });
+
+        const hint = usedOneCall
+          ? ""
+          : '<small class="hint">Showing 5-day forecast (fallback). To get 7 days, enable One Call 3.0 in your OpenWeather account.</small>';
+
+        weatherDiv.innerHTML = currentHTML + dailyHTML + hint;
+
+        const bgMain = usedOneCall
+          ? forecast.current.weather[0].main
+          : data.weather[0].main;
+        setBackground(bgMain);
+      } catch (error) {
+        weatherDiv.innerHTML = `<p>${error.message || "Something went wrong"}</p>`;
+      }
+    }
+
+   
+    function buildDailyFrom3h(fr) {
+      const buckets = {};
+      for (const item of fr.list) {
+        const d = new Date(item.dt * 1000);
+        const key = d.toISOString().slice(0, 10); 
+        if (!buckets[key]) {
+          buckets[key] = {
+            temps: [],
+            min: Infinity,
+            max: -Infinity,
+            weatherCounts: {},
+            icons: {},
+            descs: {},
+            dtAny: item.dt,
+          };
+        }
+        const b = buckets[key];
+        b.temps.push(item.main.temp);
+        b.min = Math.min(b.min, item.main.temp_min);
+        b.max = Math.max(b.max, item.main.temp_max);
+        const main = item.weather[0].main;
+        const icon = item.weather[0].icon;
+        const desc = item.weather[0].description;
+        b.weatherCounts[main] = (b.weatherCounts[main] || 0) + 1;
+        b.icons[main] = icon;
+        b.descs[main] = desc;
+      }
+      const keys = Object.keys(buckets).sort();
+      
+      const daily = keys.slice(0, 5).map((k) => {
+        const b = buckets[k];
+        const [topMain] = Object.entries(b.weatherCounts).sort((a, b) => b[1] - a[1])[0];
+        return {
+          dt: Date.parse(k) / 1000, // сек
+          icon: b.icons[topMain],
+          description: b.descs[topMain],
+          temp: {
+            day: avg(b.temps),
+            min: b.min,
+            max: b.max,
+          },
+        };
+      });
+      return { daily };
+    }
+
+    function avg(arr) {
+      if (!arr.length) return 0;
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    function parseOpenWeatherError(text) {
+      try {
+        const obj = JSON.parse(text);
+        return obj && (obj.message || obj.cod);
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function setBackground(weatherMain) {
+      const body = document.body;
+      const w = (weatherMain || "").toLowerCase();
+      switch (w) {
+        case "clear":
+          body.style.background = "linear-gradient(to right, #fbc2eb, #a6c1ee)";
+          break;
+        case "clouds":
+          body.style.background = "linear-gradient(to right, #757f9a, #d7dde8)";
+          break;
+        case "rain":
+        case "drizzle":
+          body.style.background = "linear-gradient(to right, #4facfe, #00c6ff)";
+          createRain();
+          break;
+        case "snow":
+          body.style.background = "linear-gradient(to right, #83a4d4, #b6fbff)";
+          createSnow();
+          break;
+        case "thunderstorm":
+          body.style.background = "linear-gradient(to right, #141e30, #243b55)";
+          createRain();
+          createLightning();
+          break;
+        default:
+          body.style.background = "linear-gradient(to right, #4facfe, #00f2fe)";
+      }
+    }
+
+    function createSnow() {
+      for (let i = 0; i < 30; i++) {
+        const snow = document.createElement("div");
+        snow.classList.add("snowflake");
+        snow.textContent = "❄";
+        snow.style.left = Math.random() * 100 + "vw";
+        snow.style.animationDuration = 3 + Math.random() * 5 + "s";
+        document.body.appendChild(snow);
+      }
+    }
+
+    function createRain() {
+      for (let i = 0; i < 50; i++) {
+        const drop = document.createElement("div");
+        drop.classList.add("raindrop");
+        drop.style.left = Math.random() * 100 + "vw";
+        drop.style.animationDuration = 0.5 + Math.random() + "s";
+        document.body.appendChild(drop);
+      }
+    }
+
+    function createLightning() {
+      const lightning = document.createElement("div");
+      lightning.classList.add("lightning");
+      document.body.appendChild(lightning);
+    }
+
+    function clearEffects() {
+      document
+        .querySelectorAll(".snowflake, .raindrop, .lightning")
+        .forEach((el) => el.remove());
+    }
+  </script>
+</body>
+</html>

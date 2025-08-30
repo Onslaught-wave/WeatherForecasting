@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather App</title>
+  <style>
+    .weather-card {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      text-align: center;
+      width: 300px;
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+    input, button {
+      padding: 8px;
+      border-radius: 8px;
+      margin: 5px;
+    }
+    button {
+      border: none;
+      background: #4facfe;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #00c6ff; }
+    .weather-info { margin-top: 15px; }
+    .weather-icon { width: 80px; height: 80px; }
+
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      transition: background 1s ease;
+    }
+
+    /* Snow */
+    .snowflake {
+      position: fixed;
+      top: -10px;
+      font-size: 20px;
+      color: white;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      to { transform: translateY(100vh) rotate(360deg); }
+    }
+
+    /* Rain */
+    .raindrop {
+      position: fixed;
+      top: -10px;
+      width: 2px;
+      height: 15px;
+      background: rgba(255,255,255,0.7);
+      animation: rain linear infinite;
+    }
+    @keyframes rain {
+      to { transform: translateY(100vh); }
+    }
+
+    /* Lightning */
+    .lightning {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.6);
+      opacity: 0;
+      animation: flash 5s infinite;
+    }
+    @keyframes flash {
+      0%, 97%, 100% { opacity: 0; }
+      98% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="weather-card">
+    <h2>Weather</h2>
+    <input type="text" id="city" placeholder="Enter city in English...">
+    <button onclick="getWeather()">Search</button>
+    <div id="weather" class="weather-info"></div>
+  </div>
+
+  <script>
+    const apiKey = "31664be6517e022d353e4145781d2be0";
+
+    async function getWeather() {
+      const city = document.getElementById("city").value;
+      const weatherDiv = document.getElementById("weather");
+      clearEffects();
+
+      if (!city) {
+        weatherDiv.innerHTML = "<p>Please enter a city name!</p>";
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric&lang=en`
+        );
+
+        if (!res.ok) throw new Error("City not found! Try in English (e.g. Kyiv, Lviv, Odesa).");
+
+        const data = await res.json();
+        const icon = `https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`;
+
+        weatherDiv.innerHTML = `
+          <h3>${data.name}, ${data.sys.country}</h3>
+          <img class="weather-icon" src="${icon}" alt="${data.weather[0].description}">
+          <p><b>${data.main.temp}°C</b></p>
+          <p>${data.weather[0].description}</p>
+        `;
+
+        setBackground(data.weather[0].main);
+
+      } catch (error) {
+        weatherDiv.innerHTML = `<p>${error.message}</p>`;
+      }
+    }
+
+    function setBackground(weatherMain) {
+      const body = document.body;
+
+      switch (weatherMain.toLowerCase()) {
+        case "clear":
+          body.style.background = "linear-gradient(to right, #fbc2eb, #a6c1ee)";
+          break;
+        case "clouds":
+          body.style.background = "linear-gradient(to right, #757f9a, #d7dde8)";
+          break;
+        case "rain":
+        case "drizzle":
+          body.style.background = "linear-gradient(to right, #4facfe, #00c6ff)";
+          createRain();
+          break;
+        case "snow":
+          body.style.background = "linear-gradient(to right, #83a4d4, #b6fbff)";
+          createSnow();
+          break;
+        case "thunderstorm":
+          body.style.background = "linear-gradient(to right, #141e30, #243b55)";
+          createRain();
+          createLightning();
+          break;
+        default:
+          body.style.background = "linear-gradient(to right, #4facfe, #00f2fe)";
+      }
+    }
+
+    function createSnow() {
+      for (let i = 0; i < 30; i++) {
+        let snow = document.createElement("div");
+        snow.classList.add("snowflake");
+        snow.textContent = "❄";
+        snow.style.left = Math.random() * 100 + "vw";
+        snow.style.animationDuration = (3 + Math.random() * 5) + "s";
+        document.body.appendChild(snow);
+      }
+    }
+
+    function createRain() {
+      for (let i = 0; i < 50; i++) {
+        let drop = document.createElement("div");
+        drop.classList.add("raindrop");
+        drop.style.left = Math.random() * 100 + "vw";
+        drop.style.animationDuration = (0.5 + Math.random()) + "s";
+        document.body.appendChild(drop);
+      }
+    }
+
+    function createLightning() {
+      let lightning = document.createElement("div");
+      lightning.classList.add("lightning");
+      document.body.appendChild(lightning);
+    }
+
+    function clearEffects() {
+      document.querySelectorAll(".snowflake, .raindrop, .lightning").forEach(el => el.remove());
+    }
+  </script>
+</body>
+</html>

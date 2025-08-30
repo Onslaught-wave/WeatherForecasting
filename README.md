@@ -33,10 +33,5 @@ with animated effects (☀️ sunny, 🌧 rain, ❄ snow, ⚡ thunderstorm).
 - **Vanilla JavaScript (ES6+)**
 - **OpenWeather API**
 
----
 
-## 📦 Installation & Usage
 
-1. Clone this repo:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/weather-app.git
